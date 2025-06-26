@@ -52,8 +52,8 @@ async def handle_post(request):
 
 async def run(port=int(os.environ.get("PORT", 8881))):
     app = web.Application()
-    app.router.add_get('/', handle_get)
-    app.router.add_post('/', handle_post)
+    app.router.add_get('/onebot/v11', handle_get)
+    app.router.add_post('/onebot/v11', handle_post)
     
     runner = web.AppRunner(app)
     await runner.setup()
