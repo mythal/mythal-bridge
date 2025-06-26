@@ -9,7 +9,7 @@ from telegram.ext import (
     filters,
 )
 import random
-import threading
+import multiprocessing
 import qq_to_telegram
 
 from httpx import AsyncClient
@@ -150,7 +150,8 @@ async def forward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     """Start the bot."""
-    threading.Thread(target=qq_to_telegram.main).start()
+    qq_to_telegram_process = multiprocessing.Process(target=qq_to_telegram.main)
+    qq_to_telegram_process.start()
 
     # Create the Application and pass it your bot's token.
     application = (
@@ -166,8 +167,8 @@ def main() -> None:
     # on non command i.e message - echo the message on Telegram
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward))
 
-    # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
+    qq_to_telegram_process.terminate()
 
 
 if __name__ == "__main__":
