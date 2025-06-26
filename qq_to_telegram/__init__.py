@@ -69,5 +69,5 @@ async def run(port=int(os.environ.get("PORT", 8881))):
         await runner.cleanup()
 
 
-if __name__ == "__main__":
+def main():
     asyncio.run(run())

@@ -150,7 +150,7 @@ async def forward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     """Start the bot."""
-    threading.Thread(target=qq_to_telegram.run).start()
+    threading.Thread(target=qq_to_telegram.main).start()
 
     # Create the Application and pass it your bot's token.
     application = (
