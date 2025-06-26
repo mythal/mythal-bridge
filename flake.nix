@@ -27,6 +27,7 @@
               python-dotenv
               black
               httpx
+              aiohttp
             ]
             ++ python-telegram-bot.optional-dependencies.job-queue
           );

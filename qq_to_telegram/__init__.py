@@ -1,79 +1,73 @@
-import http.server
-import socketserver
 import os
 import json
-import http.client
+import asyncio
+import httpx
+from aiohttp import web
 
 
 BRIDGE_THREAD_ID = int(os.environ.get("BRIDGE_THREAD_ID"))
 TELEGRAM_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID"))
 TELEGRAM_CHAT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-class QqToTelegramForwardHandler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Hello")
+async def handle_get(request):
+    return web.Response(text="Hello")
 
-    def do_POST(self):
-        content_length_str = self.headers.get("Content-Length")
-        content_length = int(content_length_str) if content_length_str else 0
-
-        body = self.rfile.read(content_length)
+async def handle_post(request):
+    try:
+        body = await request.read()
         if not body:
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b"Bad Request: No body")
-            return
-        try:
-            loaded = json.loads(body)
-        except json.JSONDecodeError:
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b"Bad Request: Invalid JSON")
-            return
-        print(f"Received JSON: {loaded}")
-        nickname = loaded.get("sender", {}).get("nickname")
-        message = loaded.get("raw_message", None)
-        if not nickname or not message:
-            print(f"Missing nickname or message in the JSON payload: {loaded}")
-            self.send_response(400)
-            self.end_headers()
-            self.wfile.write(b"Bad Request: Missing nickname or message")
-            return
-        conn = http.client.HTTPSConnection("api.telegram.org", 443)
+            return web.Response(text="Bad Request: No body", status=400)
+        
+        loaded = json.loads(body)
+    except json.JSONDecodeError:
+        return web.Response(text="Bad Request: Invalid JSON", status=400)
+    
+    print(f"Received JSON: {loaded}")
+    nickname = loaded.get("sender", {}).get("nickname")
+    message = loaded.get("raw_message", None)
+    
+    if not nickname or not message:
+        print(f"Missing nickname or message in the JSON payload: {loaded}")
+        return web.Response(text="Bad Request: Missing nickname or message", status=400)
+    
+    async with httpx.AsyncClient() as client:
         token = TELEGRAM_CHAT_TOKEN
         chat_id = TELEGRAM_CHAT_ID
-        conn.request(
-            "POST",
-            f"/bot{token}/sendMessage",
-            json.dumps(
-                {
-                    "chat_id": chat_id,
-                    "text": f"[{nickname}]: {message}",
-                    "reply_to_message_id": BRIDGE_THREAD_ID,
-                }
-            ),
-            {"Content-Type": "application/json"},
+        
+        payload = {
+            "chat_id": chat_id,
+            "text": f"[{nickname}]: {message}",
+            "reply_to_message_id": BRIDGE_THREAD_ID,
+        }
+        
+        response = await client.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json=payload
         )
-        response = conn.getresponse()
-        print(f"Telegram API response: {response.status} {response.reason}")
-        conn.close()
+        
+        print(f"Telegram API response: {response.status_code} {response.reason_phrase}")
+    
+    return web.Response(text="OK")
 
 
-def run(
-    server_class=socketserver.TCPServer,
-    handler_class=QqToTelegramForwardHandler,
-    port=int(os.environ.get("PORT", 8881)),
-):
-    server_address = ("", port)
-    httpd = server_class(server_address, handler_class)
+async def run(port=int(os.environ.get("PORT", 8881))):
+    app = web.Application()
+    app.router.add_get('/', handle_get)
+    app.router.add_post('/', handle_post)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '', port)
+    await site.start()
+    
+    print(f"Server running on port {port}")
     try:
-        httpd.serve_forever()
-    finally:
+        await asyncio.Future()  # Run forever
+    except KeyboardInterrupt:
         print("Shutting down server...")
-        httpd.server_close()
+    finally:
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
-    run()
+    asyncio.run(run())
